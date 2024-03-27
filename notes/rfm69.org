@@ -1,0 +1,82 @@
+* RFM69 Notes
+
+**Datasheet** https://www.farnell.com/datasheets/1870821.pdf
+
+** POCSAG Protocol
+
+We'll be targeting POCSAG 1200 on the usual DAPNET frequency of
+439.9875MHz. This means,
+
+- FSK modulation
+- A bit rate of 1200
+- FSK deviation of 4.5KHz
+
+I'm hoping I don't have to figure out the POCSAG protocol in more
+detail and that I can just pinch someone's library for doing the
+encoding. We'll see.
+
+** Overview of usage
+
+POCSAG has its own headers and error correction. Many of the libraries
+intended for use with the HopeRF modules also try to add such headers
+(e.g. target address, network ID, error correction, etc). The modules
+themselves also have the ability to perform encryption of the
+payload - which we obviously want to disable.
+
+*** Modem Configuration Registers
+
+See page 63 of datasheet.
+
+|-----------------+--------+---------------------+---------+-----------------|
+| *Register*      | *Bits* | *Purpose*           | *Value* | *Why?*          |
+|-----------------+--------+---------------------+---------+-----------------|
+| ~RegDataModul~  |      7 | -                   |         |                 |
+|                 |    6-5 | DataMode            | ~0x00~  | Packet Mode     |
+|                 |    4-3 | ModulationType      | ~0x00~  | FSK             |
+|                 |      2 | -                   |         |                 |
+|                 |    1-0 | ModulationShaping   | ~0x00~  | No shaping      |
+|-----------------+--------+---------------------+---------+-----------------|
+| ~RegBitrateMsb~ |    7-0 | BitRate(15:8) - MSB | ~0x86~  | See notes below |
+| ~RegBitrateLsb~ |    7-0 | BitRate(7:0) - LSB  | ~0x2b~  | See notes below |
+|-----------------+--------+---------------------+---------+-----------------|
+| ~RegFdevMsb~    |    7-6 | -                   |         |                 |
+|                 |    5-0 | Fdev(13:8) - MSB    | ~0x00~  |                 |
+| ~RegFdevLsb~    |    7-0 | Fdev(7:0) - LSB     | ~0x4a~  | See notes below |
+|-----------------+--------+---------------------+---------+-----------------|
+|                 |        |                     |         |                 |
+
+
+**** Calculating ~RegBitrateMsb~ and ~RegBitrateLsb~
+
+Table 9 (page 20) of the datasheet gives values for pre-calculated bit
+rates. The values chosen in the table above result in a bitrate of
+1200.015, which given the relatively short duration of the POCSAG
+messages, should be fine.
+
+The values can be calculated by dividing the oscillator frequency
+(typically 32MHz) by the target bitrate. For example,
+
+#+BEGIN_SRC elisp
+  (format "%x" (round (/ 32.0e6 1200.0))) "682b" ;; bitrate
+#+END_SRC
+
+**** Calculating ~RegFdevMsb~ and ~RegFdevLsb~
+
+This is the frequency deviation used from the centre frequency during
+FSK modulation. As mentioned earlier, POCSAG requires a deviation of
+4.5KHz. The datasheet does not provide a list of example values for
+this, and the formula they provide does not make sense to me. However...
+
+#+BEGIN_SRC elisp
+  ;; We know that Fstep is 61 (matches the datahsheet)
+  (round (/ 32.0e6 (expt 2 19))) 61 ;; Fstep
+
+  ;; They claim a Fdev 82 (0x52) gives a deviation of 5000Hz
+  (/ 5000.0 82.0 ) 60.97560975609756 ;; makes sense
+
+  ;; In that case...
+  (/ 4500 61.0) 73.77049180327869 ;; 0x4a
+#+END_SRC
+
+Will this work though :D
+
