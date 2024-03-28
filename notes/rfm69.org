@@ -46,6 +46,7 @@ See page 63 of datasheet.
 |                 |        |                     |         |                 |
 
 
+
 **** Calculating ~RegBitrateMsb~ and ~RegBitrateLsb~
 
 Table 9 (page 20) of the datasheet gives values for pre-calculated bit
@@ -80,3 +81,31 @@ this, and the formula they provide does not make sense to me. However...
 
 Will this work though :D
 
+** FIFO Buffers and Packet Length
+
+When configured in Packet Mode, the payload is copied into a FIFO
+buffer via SPI, this is then read and modulated onto the
+carrier. Unfortunately this buffer is only 60 bytes and while a POCSAG
+transmission sounds perfect (when compared to the same message
+converted to audio), it cannot be read. I suspect the brief pauses
+between payloads breaks FSK.
+
+The datasheet provides some advice about handling larger payloads on
+page 56. Basically word-for-word:
+
+1. Prefil the FIFO buffer with TX disabled. This will trigger
+   ~FifoThreshold~ or ~FifoFull~.
+2. While transmitting, wait for the ~FifoThreshold~ or ~FifoNotEmpty~
+   to be cleared. This is when the FIFO buffer is nearly empty.
+3. Write more bytes into the FIFO until ~FifoThreshold~ or ~FifoFull~
+   is set.
+4. Continue from Step 2 until the entire payload has been transferred
+   to FIFO. The ~PacketSent~ event will be triggered when the last bit
+   of the payload has been transmitted.
+
+There is another option, too. If the ~DataMode~ bits of ~RegDataModul~
+are set to ~0b10~ or ~0b11~ (with or without bit sync, respectively),
+the payload can be clocked in for modulation using the ~DIO2~ (~DATA~)
+and ~DIO1~ (~CLOCK~) pins. On the Adafruit Feather 32u (433MHz) LoRa
+development board, only ~DIO2~ and ~DIO2~ are made accessible -
+although you could still solder onto them I guess.
