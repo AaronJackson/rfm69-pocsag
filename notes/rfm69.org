@@ -36,7 +36,7 @@ See page 63 of datasheet.
 |                 |      2 | -                   |         |                 |
 |                 |    1-0 | ModulationShaping   | ~0x00~  | No shaping      |
 |-----------------+--------+---------------------+---------+-----------------|
-| ~RegBitrateMsb~ |    7-0 | BitRate(15:8) - MSB | ~0x86~  | See notes below |
+| ~RegBitrateMsb~ |    7-0 | BitRate(15:8) - MSB | ~0x68~  | See notes below |
 | ~RegBitrateLsb~ |    7-0 | BitRate(7:0) - LSB  | ~0x2b~  | See notes below |
 |-----------------+--------+---------------------+---------+-----------------|
 | ~RegFdevMsb~    |    7-6 | -                   |         |                 |
