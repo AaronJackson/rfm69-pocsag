@@ -109,3 +109,40 @@ the payload can be clocked in for modulation using the ~DIO2~ (~DATA~)
 and ~DIO1~ (~CLOCK~) pins. On the Adafruit Feather 32u (433MHz) LoRa
 development board, only ~DIO2~ and ~DIO2~ are made accessible -
 although you could still solder onto them I guess.
+
+*** Reading FIFO buffer flags
+
+These are detailed on page 70 of the datasheet.
+
+Register ~RegIrqFlags2~ (address ~0x28~) contains (I think) everything
+we need.
+
+| Name           | Bit | r/w | Description                                                  |
+|----------------+-----+-----+--------------------------------------------------------------|
+| ~FifoFull~     |   7 | r   | Set when the buffer is full (66 bytes)                       |
+| ~FifoNotEmpty~ |   6 | r   | Set when the buffer contains 1 or more bytes                 |
+| ~FifoLevel~    |   5 | r   | Set when the buffer contains more than ~FifoThreshold~ bytes |
+| ~FifoOverrun~  |   4 | rw  | Set when too many bytes have been pushed to the buffer.      |
+| ~PacketSent~   |   3 | r   | Set when all bytes have been transmitted                     |
+| ~PayloadReady~ |   2 | r   | Set when the buffer is full of received bytes                |
+| ~CrcOk~        |   1 | r   | Set when CRC of received payload is ok                       |
+| -              |   0 | r   | unused                                                       |
+
+The ~FifoThreshold~ value is set in a separate register called
+~RegFifoThresh~ (at address ~0x3c~). The most significant bit defines
+the transmit start condition, and the remaining seven bits contains
+an integer threshold.
+
+| Name               | Bit(s) | r/w | Description                                            |
+|--------------------+--------+-----+--------------------------------------------------------|
+| ~TxStartCondition~ |      7 | rw  | 0 = ~FifoLevel~ > ~FifoThreshold~. 1 = ~Fifolevel~ > 0 |
+| ~FifoThreshold~    |    6-0 | rw  | Defaults to ~0b0001111~                                |
+
+*** Disabling sync data
+
+I recorded the audio of the message using my RTL-SDR and compared it
+to the same message. It was almost identical apart from a few cases
+where there was random crap. After a bit of manual grepping I found it
+was likely the sync data between frames. I'm not actually sure why the
+modem was sending them, but they can easily be disabled by writing a 0
+into register ~0x2e~.
