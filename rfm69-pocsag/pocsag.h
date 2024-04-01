@@ -5,6 +5,7 @@
 #define PREAMBLE_LENGTH 72 //min 576 bits
 #define FRAME_LENGTH 64 //1 batch = 8 frames * 8bytes
 #define NUM_FRAMES (FRAME_LENGTH / 4) //16x 4bytes = 64bytes
+/* #define NUM_FRAMES 16 */
 
 #define PREAMBLE_FILL 0xAA
 #define FUNCTION_CODE 0x03 //3 is for alpha mode

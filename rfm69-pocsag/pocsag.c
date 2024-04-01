@@ -77,11 +77,14 @@ uint32_t encodeAddress(uint32_t address) {
 struct Ascii7BitStruct* ascii7bitEncoder(const char* message) {
 
   int length = strlen(message);
+  if (length > 48)
+    length = 48;
       // int encoded_length = (int)((float)7/8 * length);
-  int encoded_length = (int)(ceil((float)length / 7.0 * 8));
+  int encoded_length = (int)(ceil((float)(length * 7) / (float)8)) + 3;
+
 
   unsigned char* encoded = calloc(sizeof(unsigned char), encoded_length + 1);
-  memset(encoded, 0, encoded_length); // EOT
+  memset(encoded, 0, sizeof(unsigned char) * (encoded_length + 1));
 
   int shift = 1;  //count of number of bits to right of each 7bit char
   uint8_t* curr = (uint8_t*)encoded;
@@ -117,9 +120,13 @@ struct Ascii7BitStruct* ascii7bitEncoder(const char* message) {
 // Split the 7bit ascii string into frames of 20bit messages + chksum + parity
 struct FrameStruct* splitMessageIntoFrames(struct Ascii7BitStruct* ascii7bitBuffer) {
   // 20bits of message
-  int chunks = (ascii7bitBuffer->length / 3) + 1;
-
+  int chunks = (int)ceil((float)(ascii7bitBuffer->length) / (float)3) + 1;
+  /* int chunks = ceil((float)(ascii7bitBuffer->length * 7) / (float)20); */
   uint32_t* batches = calloc(sizeof(uint32_t), chunks);
+
+  const uint32_t idle_codeword = htonl(IDLE_CODEWORD);
+  memcpy(batches, &idle_codeword, sizeof(uint32_t)*chunks);
+  /* memset(batches, 0, sizeof(uint32_t)*chunks); */
 
   unsigned char* curr = ascii7bitBuffer->asciiPtr;
 
@@ -136,12 +143,12 @@ struct FrameStruct* splitMessageIntoFrames(struct Ascii7BitStruct* ascii7bitBuff
     if (!(i % 2)) {
       if (end - curr >= 3)
         curr += 2;
-      batches[i] &= 0xfffff000;
+      batches[i] &= (uint32_t)0xfffff000;
       batches[i] >>= 1;
     } else {
       if (end - curr >= 3)
         curr += 3;
-      batches[i] &= 0x0fffff00;
+      batches[i] &= (uint32_t)0x0fffff00;
       batches[i] <<= 3;
     }
 

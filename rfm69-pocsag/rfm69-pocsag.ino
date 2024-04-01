@@ -20,9 +20,6 @@ extern "C" {
 
 RH_RF69 rf69(RFM69_CS, RFM69_INT);
 
-byte mac[] = {0x4F, 0x3E, 0x42, 0x9F, 0xED, 0x2D};
-byte ip[] = {192, 168, 1, 12};
-
 void setup() {
   pinMode(LED, OUTPUT);  // LED
   pinMode(RFM69_RST, OUTPUT);
@@ -31,8 +28,6 @@ void setup() {
 
   Serial.begin(9600); // USB
   Serial1.begin(9600); // RX/TX pins
-  // while (!Serial)
-  //   ;
 
   if (!rf69.init())
     Serial.println("init failed");
@@ -47,7 +42,6 @@ void setup() {
   rf69.setModemRegisters(&cfg);
   rf69.setPreambleLength(0);
   rf69.setTxPower(20, true);
-  //Serial.println("okaaaaaaaaaaaay let's go");
 }
 
 bool sendPocsag(uint8_t *data, unsigned int len) {
@@ -62,7 +56,7 @@ bool sendPocsag(uint8_t *data, unsigned int len) {
   // Set exit condition to fifo empty
   rf69.spiWrite(0x3b, 0x04);
 
-  uint8_t data_i[len + 1];
+  uint8_t data_i[len];
   for (int i = 0; i < len; i++)
     data_i[i] = ~data[i];
 
@@ -74,7 +68,6 @@ bool sendPocsag(uint8_t *data, unsigned int len) {
     uint8_t fifo_level = irq_flags % 32;
     uint8_t fifo_overrun = irq_flags % 16;
     if (fifo_overrun) {
-      //Serial.println("fifo overrun");
       return false;
     }
     if (fifo_full || fifo_level) continue;
@@ -115,7 +108,13 @@ int encodePocsag(uint32_t address, const char *message, char *buffer) {
     memcpy(data, &idle_codeword, sizeof(uint32_t));
   } else {
     struct Ascii7BitStruct *encodedMessage = ascii7bitEncoder(message);
+    Serial.print("Encoded length:") ;
+    Serial.print(encodedMessage->length);
+    Serial.println();
     messageFrames = splitMessageIntoFrames(encodedMessage);
+    Serial.print("Number of frames: ");
+    Serial.print(messageFrames->length);
+    Serial.println();
 
     free(encodedMessage->asciiPtr);
     free(encodedMessage);
@@ -125,12 +124,21 @@ int encodePocsag(uint32_t address, const char *message, char *buffer) {
   memcpy(buffer + bufidx, &framesync_codeword, 4);
   bufidx += 4;
 
+  Serial.print("      sync:");
+  for(int xx = PREAMBLE_LENGTH; xx < bufidx; xx++) {
+    Serial.print(buffer[xx] & 0xFF, HEX);
+    Serial.print(", ");
+  }
+  Serial.println();
+
+  Serial.println(frame_offset);
   int frames_left = (frame_offset + messageFrames->length + NUM_FRAMES - 1);
   int messagePartsDone = 0;
   int codewordsDone = 0;
 
   while (frames_left > 0) {
-    // Under normal circumstances this outer while loop only runs once.
+    Serial.print("frames_left: ");
+    Serial.println(frames_left);
 
     if (!codewordsDone && !messagePartsDone) {
       for (int i = 0; i < frame_offset; i++) {
@@ -139,6 +147,7 @@ int encodePocsag(uint32_t address, const char *message, char *buffer) {
         memcpy(buffer + bufidx + 4, &idle_codeword, 4);
         bufidx += 8;
         codewordsDone += 2;
+        Serial.println("Added two idle codewords (8 bytes)");
       }
 
       // skipped to the frame number after the offset.
@@ -147,12 +156,14 @@ int encodePocsag(uint32_t address, const char *message, char *buffer) {
       bufidx += 4;
       frames_left -= frame_offset;
       codewordsDone++;
+      Serial.println("Added encoded address (2 bytes)");
     }
 
     // Add the message frames
     for (int i = messagePartsDone; i < messageFrames->length; i++) {
       memcpy(buffer + bufidx, &(messageFrames->framePtr[i]), 4);
       bufidx += 4;
+      Serial.println("Added message frame (4 bytes)");
       messagePartsDone++;
       codewordsDone++;
       frames_left--;
@@ -167,39 +178,49 @@ int encodePocsag(uint32_t address, const char *message, char *buffer) {
       frames_left = 0;
       //pad out the rest of the batch with idles
       for (int i = 0; i < (NUM_FRAMES - codewordsDone); i++) {
-        if (bufidx >= sizeof(buffer)) {
-          // Serial.println("buffer full before last idle frame");
+        if (bufidx > sizeof(buffer)) {
           break;
         }
         // Fill with idles until the batch is done
         memcpy(buffer + bufidx, &idle_codeword, 4);
+        Serial.print("      idle:");
+        for(int xx = PREAMBLE_LENGTH; xx < bufidx; xx++) {
+          Serial.print(buffer[xx] & 0xFF, HEX);
+          Serial.print(", ");
+        }
+        Serial.println();
         bufidx += 4;
+        Serial.println("Added idle codeword (4 bytes)");
       }
     }
   }
 
+  // Always stick an idle on the end - seems to fix things........
+  memcpy(buffer + bufidx, &idle_codeword, 4);
+  bufidx += 4;
+
   free(messageFrames->framePtr);
   free(messageFrames);
 
+  Serial.println(bufidx);
   return bufidx;
 }
 
 void loop() {
-  //Serial.println("waiting for input (format: addr|msg)");
-  
-  Serial.println("still awake");
+  Serial.println("waiting for input (format: addr|msg)");
+
   Serial1.setTimeout(1000);
-  
+
   String tmpaddr = Serial1.readStringUntil('|');
   if (!tmpaddr.length()) return;
   String tmpmsg = Serial1.readStringUntil('\n');
   if (!tmpmsg.length()) return;
 
-Serial.println(tmpmsg);
+  Serial.println(tmpmsg);
   digitalWrite(LED, HIGH);
 
 
-  char buffer[500] = {0};
+  char buffer[400] = {0};
   int bufidx = encodePocsag(tmpaddr.toInt(), tmpmsg.c_str(), buffer);
   sendPocsag(buffer, bufidx);
   rf69.waitPacketSent();
