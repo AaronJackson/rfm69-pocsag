@@ -1,0 +1,5 @@
+*.drl
+*.gbr
+*.gbrjob
+fp-info-cache
+**/*-backups/
