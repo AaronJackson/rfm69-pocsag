@@ -6,6 +6,7 @@ const char* password = "";
 const char* mqtt_server = "192.168.1.228";
 
 #define NAME "pocsag-gw"
+#define ENABLE_FEATHER 2
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -35,6 +36,7 @@ void reconnect() {
     // Attempt to connect
     if (client.connect(clientId.c_str())) {
       client.subscribe("pocsag/send");
+      client.subscribe("pocsag/power");
     } else {
       // Wait 5 seconds before retrying
       delay(5000);
@@ -47,15 +49,31 @@ void callback(char* topic, byte* payload, unsigned int length) {
     char msg[length+1] = {0};
     memcpy(msg, payload, length);
     Serial.println(msg);
+    return;
+  }
+
+  if (strcmp(topic, "pocsag/power") == 0) {
+    char msg[length+1] = {0};
+    memcpy(msg, payload, length);
+    if (strcmp(msg, "ON") == 0) {
+      digitalWrite(ENABLE_FEATHER, HIGH);
+    }
+    if (strcmp(msg, "OFF") == 0) {
+      digitalWrite(ENABLE_FEATHER, LOW);
+    }
+    return;
   }
 }
 
 void setup() {
+  pinMode(ENABLE_FEATHER, OUTPUT);  // Adafruit Feather EN pin
+
   Serial.begin(9600);
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
 
+  digitalWrite(ENABLE_FEATHER, true);
 }
 
 void loop() {
