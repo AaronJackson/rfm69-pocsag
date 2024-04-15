@@ -47,6 +47,8 @@ void setup() {
 bool sendPocsag(uint8_t *data, unsigned int len) {
   rf69.waitPacketSent();
 
+  while (!rf69.waitCAD());
+
   // Set FifoThreshold to 32 bytes (out of 68)
   rf69.spiWrite(0x3c, 0xa0);
 
