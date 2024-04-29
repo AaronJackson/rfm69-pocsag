@@ -1,15 +1,17 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
-const char* ssid = "Rhwyd_2.4GHz";
+const char* ssid = "";
 const char* password = "";
-const char* mqtt_server = "192.168.1.228";
+const char* mqtt_server = "";
+const char* mqtt_username = "";
+const char* mqtt_password = "";
 
-#define NAME "pocsag-gw"
+#define NAME "MB7PNH-POCSAG"
 #define ENABLE_FEATHER 2
 
 #define tx_disable tx_state = 0; digitalWrite(ENABLE_FEATHER, false)
-#define tx_enable  tx_state = 0; digitalWrite(ENABLE_FEATHER, true);
+#define tx_enable  tx_state = 1; digitalWrite(ENABLE_FEATHER, true);
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -32,7 +34,6 @@ void setup_wifi() {
   }
 
   randomSeed(micros());
-
 }
 
 void reconnect() {
@@ -46,9 +47,13 @@ void reconnect() {
     String clientId = NAME;
     clientId += String(random(0xffff), HEX);
     // Attempt to connect
-    if (client.connect(clientId.c_str())) {
+    if (client.connect(clientId.c_str(), mqtt_username, mqtt_password)) {
       client.subscribe("pocsag/send");
       client.subscribe("pocsag/power");
+      client.subscribe("pocsag/status");
+
+      client.publish("nh/discord/tx/pm/asjackson", NAME " - Restarted");
+      client.publish("nh/irc/tx/pm/asjackson", NAME " - Restarted");
       mqtt_connects++;
     } else {
       // Wait 5 seconds before retrying
@@ -61,6 +66,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if (strcmp(topic, "pocsag/send") == 0) {
     char msg[length+1] = {0};
     memcpy(msg, payload, length);
+    tx_count++;
     Serial.println(msg);
     return;
   }

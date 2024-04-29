@@ -18,6 +18,8 @@ extern "C" {
 
 #define FREQUENCY 439.9875
 
+#define ID "MB7PNH POCSAG"
+
 RH_RF69 rf69(RFM69_CS, RFM69_INT);
 
 void setup() {
@@ -231,7 +233,7 @@ void loop() {
   delay(1000);
 
   char bufferID[200] = {0};
-  int bufidxID = encodePocsag(6, "M6PIU POCSAG", bufferID);
+  int bufidxID = encodePocsag(6, ID, bufferID);
   sendPocsag(bufferID, bufidxID);
   rf69.waitPacketSent();
   rf69.setModeIdle();
